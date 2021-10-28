@@ -46,7 +46,7 @@ public class ComputationalIntelligenceLab1 {
     char[] nodes = "ABCD".toCharArray();
         getCostOfRoute(nodes, dictionary, path, edges);
 */
-        Nodes nodes = new Nodes("src\\computational\\intelligence\\lab\\pkg1\\ulysses16(1)_1.csv");
+        Nodes nodes = new Nodes("src\\computational\\intelligence\\lab\\pkg1\\ulysses16(1).csv");
         int cityNumber = nodes.getCities();
         Paths paths = new Paths(cityNumber,nodes);
         paths.printMatrix();
@@ -57,15 +57,29 @@ public class ComputationalIntelligenceLab1 {
         for(int i =1;i<=cityNumber-1;i++){
             pathToShuffle.add(i);
         }
-
+        int[] bestRoute = new int[cityNumber+1];
+        double bestRouteWeight =10000 ;
+         boolean leave = false;
+         long startTime = System.currentTimeMillis();
+       while(!leave){
         Collections.shuffle(pathToShuffle);
         System.out.println(pathToShuffle);
         for (int i = 1; i<cityNumber;i++){
             routePath[i] = pathToShuffle.get(i-1);
         }
-       
-        double costOfRoute = getCostOfRoute(routePath,paths);
-        System.out.println("the distance is     "+ costOfRoute);
+      
+                   double costOfRoute = getCostOfRoute(routePath,paths);
+                   if(costOfRoute < bestRouteWeight){
+                       bestRouteWeight = costOfRoute;
+                       bestRoute = routePath;
+                       
+                   }
+            long elapsedTime = System.currentTimeMillis() - startTime;
+            if(elapsedTime/1000 == 300){
+                leave = true;
+            }
+       }
+        System.out.println("Best found route is:    " +bestRoute.toString() +"\nwith weight:   " + bestRouteWeight);
         
     }
     
