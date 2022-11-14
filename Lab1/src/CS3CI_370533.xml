@@ -1,0 +1,883 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<indexing>
+ <paragraph index="9" node_type="writer">import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Scanner;
+import java.util.Random ;
+import java.util.Vector;
+
+public class Main {
+
+
+    private static final int iterations = 10000;
+    private static Matrix matrix;
+    private static final int antennaCount = 3;
+    public static void main(String[] args) {
+
+    SetupMatrix();
+    int[] route = new int[] {2, 1, 3, 7, 14, 4, 10, 8, 9, 6, 5, 13, 12, 11, 15, 0};
+    //{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}
+    //CustomRoute( route);
+  //  randomSearch();
+    // LocalSearch();
+     //AntennaArray();
+        evo(50,10000);
+
+    }
+
+    private static void evo(int populationSize, int generations) {
+        EvolutionaryAlgorithm evo = new EvolutionaryAlgorithm(populationSize,generations,matrix);
+        evo.InitialisePopulation();
+        evo.runGenerations();
+    }
+
+    private static void AntennaArray() {
+        AntennaArray aa = new AntennaArray(antennaCount,90);
+        // System.out.println(aa.evaluate();
+        Swarm swarm = new Swarm(antennaCount,iterations,aa);
+        swarm.run();
+    }
+
+    private static void CustomRoute(int[] route) {
+
+        ArrayList&lt;Integer&gt; introute = new ArrayList&lt;Integer&gt;();
+        for(int i : route){
+            introute.add(i);
+        }
+         System.out.println(matrix.GetCostOfRoute(introute));
+    }
+
+    private static void LocalSearch() {
+        LocalSearch ls =new LocalSearch(matrix);
+        int[] intRoute =     new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+        //randomise the route
+
+        ArrayList&lt;Integer&gt; route = new ArrayList&lt;Integer&gt;();
+        for (int i : intRoute){
+            route.add(i);
+        }
+        Collections.shuffle(route);
+        intRoute = new int[route.size()];
+        for (int i = 0; i &lt; route.size(); i ++){
+            intRoute[i] = route.get(i);
+        }
+        ls.iterate(intRoute,iterations);
+    }
+
+    private static void SetupMatrix() {
+        matrix  = new Matrix();
+        matrix.ReadFile(&quot;src/ulysses16(1).csv&quot;);
+    }
+
+    private static void randomSearch() {
+        //makes a matrix to hold all values of the cities
+        RandomSearch randomSearch = new RandomSearch(iterations, matrix);
+        randomSearch.Iterate();
+    }
+
+
+}</paragraph>
+ <paragraph index="11" node_type="writer">import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+
+public class EvolutionaryAlgorithm {
+    //this class is the main class for the evolutionary algorithm
+    //it is responsible for the initialisation of the population and the selection of the best routes
+    private  int populationSize;
+    private  int iterations;
+    private  Matrix matrix;
+    private  int[][] population;
+    private  int matrixSize;
+    private static double[] distances;
+    private static int[] bestRoute;
+    private static double bestDistance;
+
+    public EvolutionaryAlgorithm(int populationSize, int iterations, Matrix matrix) {
+        this.populationSize = populationSize;
+        this.iterations = iterations;
+        this.matrix = matrix;
+        matrixSize = matrix.GetMatrixSize();
+        distances = new double[populationSize];
+    }
+    public  void InitialisePopulation() {
+        //fills population with random routes
+        population = new int[populationSize][matrixSize];
+        for (int i = 0; i &lt; populationSize; i++) {
+            population[i] = GetRandomRoute(matrixSize);
+            distances[i] = matrix.GetCostOfRoute(ArrayToList(population[i]));
+
+
+        }
+        bestRoute = GetBestRoute(population);
+    }
+
+    public  int[] GetRandomRoute(int matrixSize) {
+        //returns a random route
+        ArrayList&lt;Integer&gt; introute = new ArrayList&lt;Integer&gt;();
+        for (int i = 0; i &lt; matrixSize; i++) {
+            introute.add(i);
+        }
+        Collections.shuffle(introute);
+        int[] route = new int[matrixSize];
+        for (int i = 0; i &lt; matrixSize; i++) {
+            route[i] = introute.get(i);
+        }
+        return route;
+    }
+
+    public  ArrayList&lt;Integer&gt; ArrayToList(int[] array) {
+        //converts an array to an arraylist
+        ArrayList&lt;Integer&gt; list = new ArrayList&lt;Integer&gt;();
+        for (int i = 0; i &lt; array.length; i++) {
+            list.add(array[i]);
+        }
+        return list;
+    }
+    // get fitness of a route
+    public  double GetFitness(int[] route) {
+        return 1 / matrix.GetCostOfRoute(ArrayToList(route));
+    }
+
+
+    public  double[] NormaliseFitness(double[] fitness) {
+        //normalises the fitness of the routes
+        double[] normalisedFitness = new double[fitness.length];
+        double totalFitness = 0;
+        for (int i = 0; i &lt; fitness.length; i++) {
+            totalFitness += fitness[i];
+        }
+        for (int i = 0; i &lt; fitness.length; i++) {
+            normalisedFitness[i] = fitness[i] / totalFitness;
+        }
+        return normalisedFitness;
+        //fitness is normalised to be represented as a probability
+    }
+    public  int tournamentSelection(double[] normalisedFitness) {
+        double random = Math.random();
+        double cumulativeProbability = 0;
+        for (int i = 0; i &lt; normalisedFitness.length; i++) {
+            cumulativeProbability += normalisedFitness[i];
+            if (random &lt; cumulativeProbability) {
+                return i;
+            }
+        }
+        return 0;
+    }
+    public  int[][] NewGeneration(int[][] population, double[] normalisedFitness) {
+        int[][] newPopulation = new int[populationSize][matrixSize];
+        for (int i = 0; i &lt; populationSize; i++) {
+            int parent1 = tournamentSelection(normalisedFitness);
+            int parent2 = tournamentSelection(normalisedFitness);
+            int[] child = Crossover(population[parent1], population[parent2]);
+
+            newPopulation[i] = child;
+        }
+        return newPopulation;
+    }
+
+    public  int[] Crossover(int[] parent1, int[] parent2) {
+        int[] child = new int[matrixSize];
+        int start = (int) (Math.random() * matrixSize);
+        int end = (int) (Math.random() * matrixSize);
+        int[] p1Select = new int[parent1.length];
+        int[] p2Select = new int[parent2.length];
+        for (int i = 0 ; i &lt; parent1.length ; i ++){
+            if(i &gt;= start &amp;&amp; i &lt;= end) {
+               p1Select[i] = parent1[i];
+            } else{
+                p2Select[i] = parent2[i];
+            }
+
+        }
+
+        for (int i = 0; i &lt; parent1.length; i ++){
+            if(i &gt;= start &amp;&amp; i &lt; end) {
+                child[i] = p1Select[i];
+            }
+            else {
+                child[i] = p2Select[i];
+            }
+        }
+
+
+
+
+
+        return child;
+    }
+    //best route from the population
+    public  int[] GetBestRoute(int[][] population) {
+        int[] bestRoute = new int[matrixSize];
+        double bestDistance = Double.MAX_VALUE;
+        for (int i = 0; i &lt; populationSize; i++) {
+            double distance = matrix.GetCostOfRoute(ArrayToList(population[i]));
+            if (distance &lt; bestDistance) {
+                bestDistance = distance;
+                bestRoute = population[i];
+            }
+        }
+        return bestRoute;
+    }
+
+    public   void runGenerations(){
+        //runs the algorithm for a number of generations
+        for (int i = 0; i &lt; iterations; i++) {
+            double[] fitness = new double[populationSize];
+            for (int j = 0; j &lt; populationSize; j++) {
+                fitness[j] = GetFitness(population[j]);
+            }
+            double[] normalisedFitness = NormaliseFitness(fitness);
+            population = NewGeneration(population, normalisedFitness);
+            if(matrix.GetCostOfRoute(ArrayToList(GetBestRoute(population))) &gt;= 74.1087) {
+                bestRoute = GetBestRoute(population);
+                double distance = matrix.GetCostOfRoute(ArrayToList(bestRoute));
+                System.out.println(&quot;Best distance: &quot; + distance);
+            }
+        }
+
+    }
+    //gets the best route from the population
+    public  int[] GetBestRoute(){
+        return GetBestRoute(population);
+    }
+
+}
+</paragraph>
+ <paragraph index="13" node_type="writer">import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+
+public class LocalSearch {
+
+   private static  Matrix matrix;
+    public LocalSearch(Matrix matrix){
+        this.matrix = matrix;
+
+    }
+
+    //two opt swap
+    public static int[] swap(int[] route, int i, int k) {
+        //two opt swap method
+     //   System.out.println(Arrays.toString(route));
+     //   System.out.println(&quot;swapping &quot; + i + &quot; with &quot; + k);
+        int[] newRoute = new int[route.length];
+        for (int c = 0; c &lt;= i - 1; c++) {
+            newRoute[c] = route[c];
+        }
+        int dec = 0;
+        for (int c = i; c &lt;= k; c++) {
+            newRoute[c] = route[k - dec];
+            dec++;
+        }
+        for (int c = k + 1; c &lt; route.length; c++) {
+            newRoute[c] = route[c];
+        }
+        //System.out.println(matrix.GetCostOfRoute(listToArray(newRoute)));
+        return newRoute;
+    }
+    public static int[] swapAll(int[] route, int i) {
+        //gets a neigtbourhood and find the best route
+        double bestDistance = matrix.GetCostOfRoute(listToArray(route));
+        int[] bestRoute = route;
+        int[] newRoute = new int[route.length];
+        for (int c = 0; c &lt; route.length; ++c) {
+            newRoute[c] = route[c];
+        }
+        for (int k = 0; k &lt; route.length; k++) {
+            if (k != i) {
+                newRoute = swap(newRoute, i, k);
+                double newDistance = matrix.GetCostOfRoute(listToArray(newRoute));
+                if (newDistance &lt; bestDistance) {
+                    bestDistance = newDistance;
+                    bestRoute = newRoute;
+                //    System.out.println(&quot;new best distance: &quot; + bestDistance);
+             //       System.out.println(Arrays.toString(bestRoute));
+                }
+
+            }
+        }
+        return bestRoute;
+    }
+
+public static int[] swapAllInRoute(int[] route){
+        //neighbourhood step function
+        double bestDistance = matrix.GetCostOfRoute(listToArray(route));
+        int[] bestRoute = route;
+        int[] newRoute = new int[route.length];
+        for (int c = 0; c &lt; route.length; ++c) {
+            newRoute[c] = route[c];
+        }
+        for (int i = 0; i &lt; route.length; i++) {
+            newRoute = swapAll(newRoute, i);
+            double newDistance = matrix.GetCostOfRoute(listToArray(newRoute));
+            if (newDistance &lt; bestDistance) {
+                bestDistance = newDistance;
+                bestRoute = newRoute;
+              //  System.out.println(&quot;new best distance: &quot; + bestDistance);
+              //  System.out.println(Arrays.toString(bestRoute));
+            }
+        }
+        return bestRoute;
+    }
+    public void iterate(int[] route, int iterations){
+        int[] bestRoute = route;
+        double bestDistance = matrix.GetCostOfRoute(listToArray(route));
+
+        for (int i = 0; i &lt; iterations; i++){
+
+           int[] tempRoute =  swapAllInRoute(route);
+              double tempDistance = matrix.GetCostOfRoute(listToArray(tempRoute));
+              if (tempDistance &lt; bestDistance &amp;&amp; tempDistance &gt;=74.1087){
+                  bestDistance = tempDistance;
+                  bestRoute = tempRoute;
+                  //System.out.println(&quot;new best distance: &quot; + bestDistance);
+                 // System.out.println(Arrays.toString(bestRoute));
+              }
+            //randomise the route
+            ArrayList arrayList = listToArray(route);
+            Collections.shuffle(arrayList);
+            int[] routeList = arrayToList(arrayList);
+            route = routeList;
+        }
+        System.out.println(&quot;best distance: &quot; + bestDistance);
+        System.out.println(Arrays.toString(bestRoute));
+    }
+    //array to list
+    public static int[] arrayToList (ArrayList&lt;Integer&gt; array){
+        int[] list = new int[array.size()];
+
+        for (int i = 0; i &lt; array.size(); i++){
+            list[i] = array.get(i);
+        }
+        return list;
+    }
+
+
+
+
+
+    public static ArrayList&lt;Integer&gt; listToArray(int[] list){
+        ArrayList&lt;Integer&gt; array = new ArrayList&lt;Integer&gt;();
+        for(int i : list){
+            array.add(i);
+        }
+        return  array;
+    }
+}
+</paragraph>
+ <paragraph index="15" node_type="writer">import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Scanner;
+public class Matrix {
+
+    //reads file and crates a matrix from it
+  private  static float[] xPositions ; //this will represent the row of the matrix;
+
+    private static float[] yPositions;  //this will represent the column of the matrix;
+    private   static int matrixSize ;
+    private static ArrayList&lt;String[]&gt; data;
+
+    public static void ReadFile(String path){
+
+        try {
+            Scanner scanner = new Scanner(new File(&quot;src/ulysses16(1).csv&quot;));
+            data  = new ArrayList&lt;String[]&gt;();
+            boolean collecting = false;
+            while (scanner.hasNext()) {
+                String line = scanner.next();
+                if (line.contains(&quot;,x,y&quot;)) {
+                    collecting = true;
+                    line = scanner.next();
+                }
+                if (collecting) {
+                    data.add(line.split(&quot;,&quot;));
+
+                }
+            }
+            //make a node matrix in the size of this
+            matrixSize = data.size();
+            xPositions = new float[matrixSize];
+            yPositions = new float[matrixSize];
+            for(int i = 0 ; i &lt; data.size(); i ++ ){
+                xPositions[i] = Float.valueOf(data.get(i)[1]);
+                yPositions[i] = Float.valueOf(data.get(i)[2]);
+
+            }
+
+        }  catch (FileNotFoundException ex) {
+            System.out.println(&quot;FILE NOT FOUND&quot;);
+        }
+    }
+    public int GetMatrixSize(){
+        return matrixSize;
+    }
+
+
+    public double GetCostOfRoute(ArrayList&lt;Integer&gt; route){
+        float cost = 0;
+        for(int i = 0 ; i &lt; route.size() - 1; i ++){
+            cost += GetCostOfTwoNodes(route.get(i),route.get(i+1));
+        }
+        cost += GetCostOfTwoNodes(route.get(route.size()-1),route.get(0));
+        return cost;
+    }
+    //gets the cost of two nodes
+    public float GetCostOfTwoNodes(int node1, int node2){
+        float x1 = xPositions[node1];
+        float y1 = yPositions[node1];
+        float x2 = xPositions[node2];
+        float y2 = yPositions[node2];
+        return (float) Math.sqrt(Math.pow(x1-x2,2) + Math.pow(y1-y2,2));
+    }
+
+
+
+}
+</paragraph>
+ <paragraph index="17" node_type="writer">import  java.util.Random;
+
+public class Particle {
+    //Vectors on each particle
+    private  int dimensions;
+  private  VectorC position;
+    private  VectorC velocity;
+    private double velMax = 0.3;
+    public  VectorC bestPosition;
+
+    public  double personalBest;
+    public double fitness;
+    AntennaArray antennaArray;
+
+    //parameter sets that are used in randomising the movement of the paritcles
+    private  final double inertial = 1/(2*(Math.log(2)));
+    private  final double cognitive = 0.5 + Math.log(2);
+    private  final double social = 0.5 + Math.log(2);
+    public Particle(int dimensions,AntennaArray aa){
+        this.antennaArray = aa;
+        this.dimensions = dimensions;
+        position = new VectorC(dimensions);
+        bestPosition = new VectorC(dimensions);
+        velocity = new VectorC(dimensions);
+    }
+
+    public void initialise(double[][] bounds){
+        //better way to generate random particles
+       this.position.randomiseVector(bounds);
+        this.bestPosition = position;
+        this.personalBest = antennaArray.evaluate(this.bestPosition.getVector());
+       VectorC temp = new VectorC(dimensions);
+       temp.randomiseVector(bounds);
+       //set up velocity
+        for (int i = 0; i &lt; dimensions; i++){
+            double vel = temp.get(i) - position.get(i);
+            velocity.set(i, getClampedVelocity(vel));
+        }
+
+    }
+    public double getClampedVelocity(double velocity){
+        if (velocity &gt; velMax){
+            return velMax;
+        }
+        else if (velocity &lt; -velMax){
+            return -velMax;
+        }
+        else {
+            return velocity;
+        }
+    }
+    private VectorC  VectorInBounds(double[][] bounds) {
+        //returns a random vector in bounds
+        VectorC vector = new VectorC(dimensions);
+
+        for (int i = 0 ; i &lt; dimensions ; i ++){
+            double min = bounds[i][0];
+            double max = bounds[i][1];
+            //gets the correct bounds of the vector
+
+            double random = min + Math.random() * (max - min);
+            //gets the values of the position at the correct bounds
+            vector.set(i,random);
+        }
+
+
+        return vector;
+    }
+
+    //create uniform random vectors
+   public VectorC RandomVector(){
+   //returns a random vector
+
+       Random r = new Random();
+       VectorC vector = new VectorC(dimensions);
+
+       for (int i = 0; i &lt; dimensions; i++){
+           vector.set(i, r.nextDouble());
+       }
+       return vector;
+    }
+
+    public VectorC CognitiveAttraction(){
+        VectorC cognitiveAttraction = new VectorC(dimensions);
+        VectorC cognitiveAttractionRand = RandomVector();
+        for(int i = 0; i &lt; dimensions; i++){
+            //calculates the cognitive attraction of the paritcle using its best position and the random vector
+            cognitiveAttraction.set(i, cognitiveAttractionRand.get(i) * (bestPosition.get(i) - position.get(i)));
+        }
+        return cognitiveAttraction;
+    }
+    public VectorC SocialAtrraction(VectorC globalBest){
+        VectorC socialAttraction = new VectorC(dimensions);
+        VectorC socialAttractionRand = RandomVector();
+        for(int i = 0; i &lt; dimensions; i++){
+            //calculates the social attraction of the paritcle using the global best position and the random vector
+            socialAttraction.set(i, socialAttractionRand.get(i) * (globalBest.get(i) - position.get(i)));
+            }
+        return socialAttraction;
+    }
+    private  void updateVelocity(VectorC globalBest) {
+        //updates the velocity of the particle
+
+        //gets new random velocities for the vectors
+        VectorC cognitiveAttraction = CognitiveAttraction();
+        VectorC socialAttraction = SocialAtrraction(globalBest);
+        for (int i = 0; i &lt; dimensions; i++) {
+            //calculates the new velocity of the particle
+            double velocityValue = (inertial * velocity.get(i)) + (cognitive * cognitiveAttraction.get(i)) + (social * socialAttraction.get(i));
+            velocity.set(i, getClampedVelocity(velocityValue));
+
+        }
+    }
+    public  void updatePosition(VectorC globalBest){
+        //updates the position of the particle
+        updateVelocity(globalBest);
+        //gets the new velocity of the paritcle
+        for(int i = 0; i &lt; dimensions; i++){
+            //adds the position elemens to the velocity elements
+            double value = position.get(i) + velocity.get(i);
+            //checks if the value is in bounds
+            if (value &gt; 1.5){
+                value = 1;
+            }
+            else if (value &lt; 0){
+                value = 0;
+            }
+           value = Math.abs(Math.round(value * 10.0) / 10.0);
+            position.set(i, value);
+        }
+
+
+    }
+
+
+
+    public double GetPersonalBest() {
+        return personalBest;
+    }
+    public void SetPersonalBest(double personalBest) {
+        this.personalBest = personalBest;
+    } //they will be dealt with in swarm class
+    public void setFitness(double fitness) {
+        this.fitness = fitness;
+    }
+    public double getFitness() {
+        return fitness;
+    }
+    public VectorC GetBestPosition() {
+        return bestPosition;
+    }
+    public VectorC getPosition() {
+        return position;
+    }
+    public void evaluate(){
+        //compares the fitness to the pb and sets the pb if the fitness is better
+        if(fitness &lt; personalBest){
+            personalBest = fitness;
+            bestPosition = position;
+        }
+    }
+}
+</paragraph>
+ <paragraph index="19" node_type="writer">import java.util.ArrayList;
+import java.util.Collections;
+
+public class RandomSearch {
+    private static int iterations;
+    private static Matrix matrix;
+    private static double[] distances ;
+    private static int matrixSize;
+
+    public RandomSearch(int iterations, Matrix matrix){
+        this.iterations = iterations;
+        this.matrix = matrix;
+        matrixSize  = matrix.GetMatrixSize();
+
+    }
+    public static double Iterate(){
+        //iterates though a number of random routes, then returns the minimum distance from it
+        distances = new double [iterations];
+        String[] routes = new String[iterations];
+        ArrayList&lt;Integer&gt; introute = new ArrayList&lt;Integer&gt;();
+        for (int i = 0; i &lt; matrixSize; i ++){
+            introute.add(i);
+        }
+        for (int index = 0 ; index &lt; iterations; index ++){
+            Collections.shuffle(introute);
+            routes[index] = introute.toString();
+            distances[index] = matrix.GetCostOfRoute(introute);
+        }
+        double minDistance = distances[0];
+        int count  = 0 ;
+        for (double distance : distances){
+
+            if(minDistance &gt; distance){
+                System.out.println(&quot;new minimum found. Distance: &quot;+distance+ &quot; \nRoute: &quot; +routes[count]  );
+                System.out.println();
+                minDistance = distance;
+            }
+            count ++;
+        }
+        return minDistance;
+    }
+    public static double[] GetDistances(){
+        //returns the distances array after the iteration of them
+        return distances;
+    }
+
+}
+</paragraph>
+ <paragraph index="22" node_type="writer">public class Swarm {
+    private static double globalBest ;
+    private static VectorC globalBestPosition;
+    private static int dimensions;
+    private static int iterations;
+    private static int particles;
+    private static Particle[] swarm; //the swarm of particles
+    AntennaArray aa ;
+    public Swarm(int dimensions, int iterations, AntennaArray aa){
+        this.dimensions = dimensions;
+        this.iterations = iterations;
+       this.particles = 20 + (int)(Math.sqrt(dimensions));
+     //  this.particles = 1;
+        this.aa  = aa; //the antenna array
+        swarm = new Particle[particles];
+        for(int i = 0; i &lt; particles; i++){
+            swarm[i] = new Particle(dimensions,aa);
+            swarm[i].initialise(aa.bounds());
+        }
+        globalBestPosition = new VectorC(dimensions);
+        globalBestPosition.randomiseVector(aa.bounds());
+      //  double[] best = new double[] {0.5,1.0,1.5};
+        //for (int i = 0; i &lt; dimensions; i++){
+        //    globalBestPosition.set(i, best[i]);
+     //   }
+        globalBest = aa.evaluate(globalBestPosition.getVector());
+
+    }
+    public void run() {
+        for (int i = 0; i &lt; iterations; i++) {
+            for (int j = 0; j &lt; particles; j++) {
+                swarm[j].updatePosition(globalBestPosition);
+                evaluate(j);
+                if (swarm[j].GetPersonalBest() &lt; globalBest) {
+                    globalBest = swarm[j].GetPersonalBest();
+                    globalBestPosition = swarm[j].GetBestPosition();
+                    evaluate(j);
+                    System.out.println( globalBest);
+                }
+            }
+
+        }
+        if(globalBest == Double.MAX_VALUE){
+            System.out.println(&quot;No solution found&quot;);
+        }
+        else {
+
+            System.out.println(&quot;Global Best: &quot; + globalBest);
+            for (double i : globalBestPosition.getVector()) {
+                System.out.print(i + &quot; &quot;);
+            }
+        }
+    }
+    public void evaluate(int index){
+    swarm[index].setFitness(aa.evaluate(swarm[index].getPosition().getVector()));
+    //gets the fitness of the swarm
+        swarm[index].evaluate();
+
+    }
+    }
+
+
+
+
+
+</paragraph>
+ <paragraph index="24" node_type="writer">import java.util.Random;
+public class VectorC {
+    private  int dimensions;
+    private   double[] vector;
+    public VectorC(int dimensions){
+        this.dimensions = dimensions;
+        vector = new double[dimensions];
+    }
+    public  void set(int index, double value){
+        vector[index] = value;
+    }
+    public  double get(int index){
+        return vector[index];
+    }
+    public double[] getVector(){
+        return vector;
+    }
+    public  void randomiseVector(double[][] bounds){
+        Random r = new Random();
+        double[] randomVector = new double[dimensions];
+        for (int i = 0; i &lt; dimensions; i++){
+         double min = bounds[i][0];
+          double max = bounds[i][1];
+            double random = min + r.nextDouble() * (max - min);
+            //rounds the random number to 2 decimal places
+          //  random = Math.round(random * 100.00) / 100.00;
+            randomVector[i] = random;
+        }
+        vector = randomVector;
+    }
+    public  void randomVector(){
+        //returns a random vector that is between 0 and 1
+        Random r = new Random();
+        double[] randomVector = new double[dimensions];
+        for (int i = 0; i &lt; dimensions; i++){
+            randomVector[i] = r.nextDouble();
+        }
+        vector = randomVector;
+    }
+
+}
+</paragraph>
+ <paragraph index="26" node_type="writer">import java.util.*;
+
+/** Antenna array design problem */
+public class AntennaArray {
+    /** Minimum spacing permitted between antennae. */
+    public  final double MIN_SPACING = 0.25;
+
+    /**
+     * Construct an antenna design problem.
+     * @param n_ant Number of antennae in our array.
+     * @param steering_ang Desired direction of the main beam in degrees.
+     */
+    public AntennaArray(int n_ant,double steering_ang) {
+        n_antennae = n_ant;
+        steering_angle = steering_ang;
+    }
+  /**
+   * Rectangular bounds on the search space.
+   * @return Vector b such that b[i][0] is the minimum permissible value of the
+   * ith solution component and b[i][1] is the maximum.
+   */
+    public  double[][] bounds() {
+        double[][] bnds = new double[n_antennae][2];
+        double[] dim_bnd = {0.0,((double)n_antennae)/2.0};
+        for(int i = 0;i&lt;n_antennae;++i)
+            bnds[i] = dim_bnd;
+        return bnds;
+    }
+    /**
+     * Check whether an antenna design lies within the problem's feasible
+     * region.
+     * A design is a vector of n_antennae anntena placements.
+     * A placement is a distance from the left hand side of the antenna array.
+     * A valid placement is one in which
+     *   1) all antennae are separated by at least MIN_SPACING
+     *   2) the aperture size (the maximum element of the array) is exactly
+     *      n_antennae/2.
+     */
+    public  boolean is_valid(double[] design) {
+        if(design.length != n_antennae) return false;
+        double[] des = new double[design.length];
+        System.arraycopy(design,0,des,0,design.length);
+        Arrays.sort(des);
+
+        //Aperture size is exactly n_antennae/2
+        if(Math.abs(des[des.length - 1] - ((double)n_antennae) / 2.0)&gt;1e-10)
+            return false;
+        //All antennae lie within the problem bounds
+        for(int i = 0;i&lt;des.length-1;++i)
+            if(des[i] &lt; bounds()[i][0] || des[i] &gt; bounds()[i][1] )
+                return false;
+        //All antennae are separated by at least MIN_SPACING
+        for(int i = 0;i&lt;des.length-1;++i)
+            if(des[i+1] - des[i] &lt; MIN_SPACING)
+                return false;
+        return true;
+    }
+    /**
+     * Evaluate an antenna design returning peak SSL.
+     * Designs which violate problem constraints will be penalised with extremely
+     * high costs.
+     * @param design A valid antenna array design.
+     */
+    public  double evaluate(double[] design) {
+        if(design.length != n_antennae)
+            throw new RuntimeException(
+                    &quot;AntennaArray::evaluate called on design of the wrong size. Expected: &quot; + n_antennae +
+                    &quot;. Actual: &quot; +
+                    design.length
+            );
+        if(!is_valid(design)) return Double.MAX_VALUE;
+
+        class PowerPeak {
+            public double elevation;
+            public double power;
+
+            public PowerPeak(double e,double p){
+                elevation = e;
+                power = p;
+            }
+        }
+
+        //Find all the peaks in power
+        List&lt;PowerPeak&gt; peaks = new ArrayList&lt;PowerPeak&gt;();
+        PowerPeak prev = new PowerPeak(0.0,Double.MIN_VALUE);
+        PowerPeak current = new PowerPeak(0.0,array_factor(design,0.0));
+        for(double elevation = 0.01; elevation &lt;= 180.0; elevation += 0.01){
+            PowerPeak next = new PowerPeak(elevation,array_factor(design,elevation));
+            if(current.power &gt;= prev.power &amp;&amp; current.power &gt;= next.power)
+                peaks.add(current);
+            prev = current;
+            current = next;
+        }
+        peaks.add(new PowerPeak(180.0,array_factor(design,180.0)));
+
+        Collections.sort(peaks,(PowerPeak l,PowerPeak r) -&gt; l.power &gt; r.power ? -1 : 1);
+
+        //No side-lobes case
+        if(peaks.size()&lt;2) return Double.MIN_VALUE;
+        //Filter out main lobe and then return highest lobe level
+        final double distance_from_steering = Math.abs(peaks.get(0).elevation - steering_angle);
+        for(int i=1;i&lt;peaks.size();++i)
+            if(Math.abs(peaks.get(i).elevation - steering_angle) &lt; distance_from_steering)
+                return peaks.get(0).power;
+        return peaks.get(1).power;
+    }
+
+    private  int n_antennae;
+    private  double steering_angle;
+
+    private  double array_factor(double[] design, double elevation) {
+        double steering = 2.0*Math.PI*steering_angle/360.0;
+        elevation = 2.0*Math.PI*elevation/360.0;
+        double sum = 0.0;
+        for(double x : design){
+            sum += Math.cos(2 * Math.PI * x * (Math.cos(elevation) - Math.cos(steering)));
+        }
+        return 20.0*Math.log(Math.abs(sum));
+    }
+}
+</paragraph>
+</indexing>

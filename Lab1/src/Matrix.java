@@ -48,37 +48,23 @@ public class Matrix {
     }
 
 
-    public static double GetCostOfRoute(ArrayList<Integer> intRoute){
-        double distance = 0 ;
-        int previousNode = intRoute.get(0);
-        int currentNode ;
-        for(int node : intRoute){
-            currentNode = node;
-            if(currentNode != previousNode){
-                int row = previousNode;
-                int column = currentNode;
-                if(column> row){
-                    row = currentNode;
-                    column = previousNode;
-                }
-                distance += CalculateDistance(xPositions[row],xPositions[column],yPositions[row],yPositions[column]);
-            }
-
+    public double GetCostOfRoute(ArrayList<Integer> route){
+        float cost = 0;
+        for(int i = 0 ; i < route.size() - 1; i ++){
+            cost += GetCostOfTwoNodes(route.get(i),route.get(i+1));
         }
-        int row = intRoute.get(intRoute.size() - 1);
-        int column = intRoute.get(0);
-        if(row < column){
-            row = intRoute.get(0);
-            column= intRoute.get(intRoute.size() - 1);
-
-        }
-        distance += CalculateDistance(xPositions[row],xPositions[column],yPositions[row],yPositions[column]);
-        return distance;
+        cost += GetCostOfTwoNodes(route.get(route.size()-1),route.get(0));
+        return cost;
+    }
+    //gets the cost of two nodes
+    public float GetCostOfTwoNodes(int node1, int node2){
+        float x1 = xPositions[node1];
+        float y1 = yPositions[node1];
+        float x2 = xPositions[node2];
+        float y2 = yPositions[node2];
+        return (float) Math.sqrt(Math.pow(x1-x2,2) + Math.pow(y1-y2,2));
     }
 
-    private static double CalculateDistance(float x1, float x2, float y1, float y2)
-    {
-        return Math.sqrt(Math.pow((x2-x1),2) + Math.pow((y2-y1),2));
-    }
+
 
 }
